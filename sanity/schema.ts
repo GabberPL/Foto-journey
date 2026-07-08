@@ -20,8 +20,10 @@ export const photoType = defineType({
     }),
     defineField({
       name: 'category',
-      title: 'Kategoria',
-      type: 'string',
+      title: 'Kategorie',
+      type: 'array',
+      description: 'Zaznacz jedną lub więcej kategorii.',
+      of: [defineArrayMember({ type: 'string' })],
       options: {
         list: [
           { title: 'Wyprawy Moto', value: 'ADV' },
@@ -32,7 +34,7 @@ export const photoType = defineType({
           { title: 'Sport', value: 'Sports' },
         ],
       },
-      validation: (Rule) => Rule.required(),
+      validation: (Rule) => Rule.required().min(1),
     }),
     defineField({
       name: 'country',
@@ -248,8 +250,26 @@ export const photoType = defineType({
   preview: {
     select: {
       title: 'title',
-      subtitle: 'category',
+      category: 'category',
       media: 'image',
+    },
+    prepare(selection) {
+      const { title, category, media } = selection as {
+        title?: string;
+        category?: string | string[];
+        media?: string | null;
+      };
+      const subtitle = Array.isArray(category)
+        ? category.join(', ')
+        : typeof category === 'string'
+          ? category
+          : 'Brak kategorii';
+
+      return {
+        title,
+        subtitle,
+        media,
+      };
     },
   },
 });
