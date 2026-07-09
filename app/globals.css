@@ -24,3 +24,68 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* --- Animacje scrollowe (natywne CSS scroll-driven animations) --- */
+
+/* Delikatne pojawienie się elementu — używane przez klasę .fade-in-soft */
+.fade-in-soft {
+  animation: fade-in-soft 0.7s ease both;
+}
+
+@keyframes fade-in-soft {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Elementy wynurzają się, gdy wchodzą w viewport */
+  @supports (animation-timeline: view()) {
+    .scroll-reveal {
+      animation: reveal-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+
+  /* Tło hero oddala się i gaśnie w miarę przewijania pierwszego ekranu */
+  @supports (animation-timeline: scroll()) {
+    .hero-parallax {
+      animation: hero-drift linear both;
+      animation-timeline: scroll();
+      animation-range: 0 100vh;
+    }
+  }
+}
+
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-drift {
+  to {
+    opacity: 0.2;
+    transform: translateY(8vh) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fade-in-soft {
+    animation: none;
+  }
+}
