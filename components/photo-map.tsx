@@ -1,21 +1,56 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import PhotoLightbox from './photo-lightbox';
+import PhotoClusterPanel from './photo-cluster-panel';
 import { loadGoogleMaps } from '@/lib/google-maps';
-import { getCountryCoordinates, MAP_STYLES } from '@/lib/map-data';
-import type { CountryMarker, SanityPhoto } from '@/lib/types';
+import { getCountryCoordinates, haversineMeters, MAP_STYLES } from '@/lib/map-data';
+import type { CountryMarker, GeoCoords, SanityPhoto } from '@/lib/types';
 
 type PhotoMapProps = {
-  /** Zdjęcia z dokładną lokalizacją (coords) — pełne piny, klik otwiera lightbox. */
+  /** Zdjęcia z dokładną lokalizacją (coords) — pełne piny, klik otwiera lightbox lub panel wyboru. */
   photos: SanityPhoto[];
   /** Zbiorcze piny krajów dla zdjęć bez dokładnej lokalizacji — klik prowadzi do galerii. */
   countryMarkers: CountryMarker[];
   className?: string;
   showZoomControl?: boolean;
 };
+
+type PhotoSpot = {
+  position: GeoCoords;
+  photos: SanityPhoto[];
+};
+
+// Zdjęcia w tym promieniu traktujemy jako "to samo miejsce" — dostają jeden pin
+// niezależnie od poziomu zoomu, żeby dalsze przybliżanie nigdy nie chowało kadrów za sobą.
+const SAME_SPOT_METERS = 15;
+// Klastry ciaśniejsze niż to prawdopodobnie i tak nie rozdzielą się przy dalszym zbliżaniu.
+const TIGHT_CLUSTER_METERS = 120;
+
+function groupPhotosBySpot(photos: SanityPhoto[]): PhotoSpot[] {
+  const spots: PhotoSpot[] = [];
+
+  photos.forEach((photo) => {
+    if (!photo.coords) return;
+    const coords = photo.coords;
+    const existing = spots.find((spot) => haversineMeters(spot.position, coords) < SAME_SPOT_METERS);
+
+    if (existing) {
+      existing.photos.push(photo);
+      const n = existing.photos.length;
+      existing.position = {
+        lat: existing.position.lat + (coords.lat - existing.position.lat) / n,
+        lng: existing.position.lng + (coords.lng - existing.position.lng) / n,
+      };
+    } else {
+      spots.push({ position: { lat: coords.lat, lng: coords.lng }, photos: [photo] });
+    }
+  });
+
+  return spots;
+}
 
 export default function PhotoMap({
   photos,
@@ -26,9 +61,12 @@ export default function PhotoMap({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<SanityPhoto | null>(null);
+  const [clusterPhotos, setClusterPhotos] = useState<SanityPhoto[] | null>(null);
   const router = useRouter();
   const routerRef = useRef(router);
   routerRef.current = router;
+
+  const spots = useMemo(() => groupPhotosBySpot(photos), [photos]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -54,38 +92,54 @@ export default function PhotoMap({
         const bounds = new googleMaps.LatLngBounds();
         let hasMarkers = false;
 
-        // Dokładne piny zdjęć — pełne kółka, klastrowane; klik otwiera lightbox
-        const photoMarkers = photos
-          .filter((photo) => photo.coords)
-          .map((photo) => {
-            const marker = new googleMaps.Marker({
-              position: { lat: photo.coords!.lat, lng: photo.coords!.lng },
-              title: [photo.title, photo.location].filter(Boolean).join(' — '),
-              icon: {
-                path: googleMaps.SymbolPath.CIRCLE,
-                scale: 7,
-                fillColor: '#EAB308',
-                fillOpacity: 1,
-                strokeColor: '#050505',
-                strokeWeight: 2,
-              },
-            });
-            marker.addListener('click', () => setLightboxPhoto(photo));
-            bounds.extend(marker.getPosition());
-            hasMarkers = true;
-            return marker;
+        // Jeden pin na miejsce — zdjęcia z tego samego punktu grupujemy z góry, więc
+        // niezależnie od zoomu klik zawsze pokaże wszystkie kadry, a nie tylko wierzchni marker.
+        const markerPhotosMap = new Map<google.maps.Marker, SanityPhoto[]>();
+
+        const spotMarkers = spots.map((spot) => {
+          const isMulti = spot.photos.length > 1;
+          const marker = new googleMaps.Marker({
+            position: spot.position,
+            title: isMulti
+              ? `${spot.photos.length} zdjęć w tym miejscu — kliknij, aby zobaczyć wszystkie`
+              : [spot.photos[0].title, spot.photos[0].location].filter(Boolean).join(' — '),
+            label: isMulti
+              ? { text: String(spot.photos.length), color: '#050505', fontSize: '10px', fontWeight: '700' }
+              : undefined,
+            icon: {
+              path: googleMaps.SymbolPath.CIRCLE,
+              scale: isMulti ? 10 : 7,
+              fillColor: '#EAB308',
+              fillOpacity: 1,
+              strokeColor: '#050505',
+              strokeWeight: isMulti ? 3 : 2,
+            },
           });
 
-        if (photoMarkers.length > 0) {
+          marker.addListener('click', () => {
+            if (isMulti) {
+              setClusterPhotos(spot.photos);
+            } else {
+              setLightboxPhoto(spot.photos[0]);
+            }
+          });
+
+          markerPhotosMap.set(marker, spot.photos);
+          bounds.extend(marker.getPosition()!);
+          hasMarkers = true;
+          return marker;
+        });
+
+        if (spotMarkers.length > 0) {
           clusterer = new MarkerClusterer({
             map,
-            markers: photoMarkers,
+            markers: spotMarkers,
             renderer: {
               render: ({ count, position }) =>
                 new googleMaps.Marker({
                   position,
                   label: { text: String(count), color: '#050505', fontSize: '11px', fontWeight: '700' },
-                  title: `${count} zdjęć — przybliż, aby rozdzielić`,
+                  title: `${count} miejsc — przybliż, aby rozdzielić`,
                   icon: {
                     path: googleMaps.SymbolPath.CIRCLE,
                     scale: 12 + Math.min(count, 20) * 0.5,
@@ -96,6 +150,27 @@ export default function PhotoMap({
                   },
                   zIndex: Number(googleMaps.Marker.MAX_ZINDEX) + count,
                 }),
+            },
+            onClusterClick: (_event, cluster, clusterMap) => {
+              const clusterBounds = cluster.bounds;
+              const isTight =
+                !clusterBounds ||
+                haversineMeters(
+                  clusterBounds.getNorthEast().toJSON(),
+                  clusterBounds.getSouthWest().toJSON(),
+                ) < TIGHT_CLUSTER_METERS;
+
+              if (isTight) {
+                const merged = (cluster.markers ?? []).flatMap(
+                  (m) => markerPhotosMap.get(m as google.maps.Marker) ?? [],
+                );
+                if (merged.length > 0) {
+                  setClusterPhotos(merged);
+                  return;
+                }
+              }
+
+              if (clusterBounds) clusterMap.fitBounds(clusterBounds);
             },
           });
         }
@@ -147,7 +222,7 @@ export default function PhotoMap({
       cancelled = true;
       clusterer?.clearMarkers();
     };
-  }, [photos, countryMarkers, showZoomControl]);
+  }, [spots, countryMarkers, showZoomControl]);
 
   return (
     <>
@@ -161,6 +236,17 @@ export default function PhotoMap({
           </div>
         ) : null}
       </div>
+
+      {clusterPhotos && (
+        <PhotoClusterPanel
+          photos={clusterPhotos}
+          onSelect={(photo) => {
+            setClusterPhotos(null);
+            setLightboxPhoto(photo);
+          }}
+          onClose={() => setClusterPhotos(null)}
+        />
+      )}
 
       {lightboxPhoto && <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />}
     </>
