@@ -3,6 +3,11 @@ export type PortableTextBlock = {
   children?: Array<{ _type?: string; text?: string }>;
 };
 
+export type GeoCoords = {
+  lat: number;
+  lng: number;
+};
+
 export type SanityPhoto = {
   _id: string;
   title: string;
@@ -10,6 +15,8 @@ export type SanityPhoto = {
   featured?: boolean;
   location?: string;
   country?: string;
+  /** Dokładna lokalizacja: pole coordinates albo GPS z EXIF pliku (coalesce w GROQ). */
+  coords?: GeoCoords | null;
   exif?: {
     camera?: string;
     lens?: string;

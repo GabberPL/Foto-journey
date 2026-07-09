@@ -2,6 +2,7 @@ import { createElement, useState } from 'react';
 import { defineConfig, useClient, type DocumentActionComponent } from 'sanity';
 import { structureTool } from 'sanity/structure';
 import { visionTool } from '@sanity/vision';
+import { googleMapsInput } from '@sanity/google-maps-input';
 import { useToast } from '@sanity/ui';
 import { Icon } from '@sanity/icons';
 import { schemaTypes } from './sanity/schema';
@@ -80,6 +81,12 @@ export default defineConfig({
   plugins: [
     structureTool(),
     visionTool(),
+    // Wybór geopointu klikaniem na mapie (pole „Dokładna lokalizacja” na zdjęciu)
+    googleMapsInput({
+      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+      defaultZoom: 5,
+      defaultLocation: { lat: 52.2297, lng: 21.0122 },
+    }),
   ],
 
   document: {

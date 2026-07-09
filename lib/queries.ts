@@ -10,7 +10,8 @@ const PHOTO_FIELDS = `
   location,
   country,
   exif,
-  image
+  image,
+  "coords": coalesce(coordinates, image.asset->metadata.location) { lat, lng }
 `;
 
 const TRIP_LIST_FIELDS = `
