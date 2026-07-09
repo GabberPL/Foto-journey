@@ -15,7 +15,10 @@ export default function PhotoLightbox({ photo, onClose }: { photo: SanityPhoto; 
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <button
         className="absolute top-4 right-4 md:top-6 md:right-6 text-zinc-400 hover:text-white z-50 p-2 bg-zinc-900/50 rounded-full transition-colors"
         onClick={onClose}
@@ -24,7 +27,10 @@ export default function PhotoLightbox({ photo, onClose }: { photo: SanityPhoto; 
         <X size={24} />
       </button>
 
-      <div className="flex flex-col md:flex-row max-w-7xl w-full h-full max-h-[90vh] bg-zinc-950 rounded-2xl overflow-hidden shadow-2xl border border-zinc-800">
+      <div
+        className="flex flex-col md:flex-row max-w-7xl w-full h-full max-h-[90vh] bg-zinc-950 rounded-2xl overflow-hidden shadow-2xl border border-zinc-800"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex-1 bg-[#050505] flex items-center justify-center p-4 relative">
           <img
             src={getImageUrl(photo.image)}
