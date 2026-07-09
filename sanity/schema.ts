@@ -17,7 +17,8 @@ export const photoType = defineType({
       name: 'image',
       title: 'Plik zdjęcia',
       type: 'image',
-      options: { hotspot: true },
+      // 'location' wyciąga GPS z EXIF przy uploadzie — zdjęcia z telefonu tagują się same
+      options: { hotspot: true, metadata: ['exif', 'location'] },
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -52,6 +53,13 @@ export const photoType = defineType({
       title: 'Lokalizacja (Miasto / region)',
       type: 'string',
       description: 'Opcjonalnie doprecyzuj miejsce, np. miasto lub region.',
+    }),
+    defineField({
+      name: 'coordinates',
+      title: 'Dokładna lokalizacja (pin na mapie)',
+      type: 'geopoint',
+      description:
+        'Opcjonalnie: wskaż miejsce wykonania zdjęcia na mapie — pojawi się jako dokładny pin na Mapie Podróży. Bez pinu zdjęcie liczy się do zbiorczego znacznika kraju. Zdjęcia z GPS w EXIF (np. z telefonu) dostają lokalizację automatycznie przy uploadzie.',
     }),
     defineField({
       name: 'exif',

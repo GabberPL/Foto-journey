@@ -1,18 +1,33 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import TravelMap from '@/components/travel-map';
-import { fetchCountryMarkers } from '@/lib/queries';
+import PhotoMap from '@/components/photo-map';
+import { fetchAllPhotos } from '@/lib/queries';
+import type { CountryMarker } from '@/lib/types';
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'Mapa podróży',
-  description: 'Kraje, które ukształtowały moje spojrzenie — kliknij pin, aby zobaczyć kadry.',
+  description: 'Miejsca, w których powstały kadry — przybliżaj, aby rozdzielić piny.',
+};
+
+const countCountries = (rows: Array<{ country?: string }>): CountryMarker[] => {
+  const counts = new Map<string, number>();
+  rows.forEach(({ country }) => {
+    const name = country?.trim();
+    if (!name) return;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  });
+  return Array.from(counts, ([country, count]) => ({ country, count }));
 };
 
 export default async function MapPage() {
-  const markers = await fetchCountryMarkers().catch(() => []);
-  const sorted = [...markers].sort((a, b) => b.count - a.count);
+  const photos = await fetchAllPhotos().catch(() => []);
+
+  const preciselyPinned = photos.filter((photo) => photo.coords);
+  // Kraje pokazujemy zbiorczo tylko dla zdjęć bez dokładnego pinu — bez podwójnego liczenia
+  const countryMarkers = countCountries(photos.filter((photo) => !photo.coords));
+  const chips = countCountries(photos).sort((a, b) => b.count - a.count);
 
   return (
     <main className="pt-32 pb-24 px-6 min-h-screen">
@@ -21,18 +36,31 @@ export default async function MapPage() {
           <p className="text-[#EAB308] font-mono text-xs uppercase tracking-widest mb-3">Eksploracja</p>
           <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Mapa Podróży</h1>
           <p className="text-zinc-400 font-light max-w-2xl">
-            Miejsca, które ukształtowały moje spojrzenie. Kliknij pin, aby przejść do kadrów z danego kraju.
+            Miejsca, które ukształtowały moje spojrzenie. Przybliżaj mapę, aby rozdzielić skupiska —
+            klik w pojedynczy pin otwiera zdjęcie.
           </p>
         </div>
 
-        <TravelMap
-          markers={markers}
+        <PhotoMap
+          photos={preciselyPinned}
+          countryMarkers={countryMarkers}
           className="h-[60vh] md:h-[70vh] rounded-2xl border border-zinc-800"
         />
 
-        {sorted.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-xs text-zinc-500">
+          <span className="flex items-center gap-2">
+            <i className="inline-block w-3 h-3 rounded-full bg-[#EAB308] border border-black" />
+            dokładne miejsce zdjęcia (klik = podgląd)
+          </span>
+          <span className="flex items-center gap-2">
+            <i className="inline-block w-3 h-3 rounded-full border-2 border-[#EAB308] bg-transparent" />
+            zdjęcia oznaczone tylko krajem (klik = galeria)
+          </span>
+        </div>
+
+        {chips.length > 0 ? (
           <div className="mt-10 flex flex-wrap gap-2">
-            {sorted.map(({ country, count }) => (
+            {chips.map(({ country, count }) => (
               <Link
                 key={country}
                 href={`/galeria?kraj=${encodeURIComponent(country)}`}

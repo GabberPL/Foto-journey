@@ -2,14 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { loadGoogleMaps } from '@/lib/google-maps';
 import { getCountryCoordinates, MAP_STYLES } from '@/lib/map-data';
 import type { CountryMarker } from '@/lib/types';
-
-type GoogleWindow = Window & {
-  google?: {
-    maps: any;
-  };
-};
 
 type TravelMapProps = {
   markers: CountryMarker[];
@@ -33,101 +28,74 @@ export default function TravelMap({
 
   useEffect(() => {
     if (!mapRef.current) return;
+    let cancelled = false;
 
-    const initializeMap = () => {
-      const googleMaps = (window as GoogleWindow).google?.maps;
-      if (!googleMaps || !mapRef.current) {
-        setMapError('Nie udało się załadować Google Maps.');
-        return;
-      }
+    loadGoogleMaps()
+      .then((googleMaps) => {
+        if (cancelled || !mapRef.current) return;
 
-      const map = new googleMaps.Map(mapRef.current, {
-        center: { lat: 20, lng: 0 },
-        zoom: 2,
-        draggable: true,
-        scrollwheel: false,
-        disableDefaultUI: true,
-        zoomControl: showZoomControl,
-        gestureHandling: 'cooperative',
-        disableDoubleClickZoom: true,
-        styles: MAP_STYLES,
-      });
-
-      const bounds = new googleMaps.LatLngBounds();
-      let hasMarkers = false;
-
-      markers.forEach(({ country, count }) => {
-        const coordinates = getCountryCoordinates(country);
-        if (!coordinates) return;
-        hasMarkers = true;
-
-        const marker = new googleMaps.Marker({
-          position: coordinates,
-          map,
-          title: count > 0 ? `${country} · ${count} zdjęć` : country,
-          label: count > 1
-            ? { text: String(count), color: '#050505', fontSize: '10px', fontWeight: '700' }
-            : undefined,
-          icon: {
-            path: googleMaps.SymbolPath.CIRCLE,
-            scale: count > 1 ? 10 : 7,
-            fillColor: '#EAB308',
-            fillOpacity: 1,
-            strokeColor: '#050505',
-            strokeWeight: 2,
-          },
+        const map = new googleMaps.Map(mapRef.current, {
+          center: { lat: 20, lng: 0 },
+          zoom: 2,
+          draggable: true,
+          scrollwheel: false,
+          disableDefaultUI: true,
+          zoomControl: showZoomControl,
+          gestureHandling: 'cooperative',
+          disableDoubleClickZoom: true,
+          styles: MAP_STYLES,
         });
 
-        if (navigateOnClick) {
-          marker.addListener('click', () => {
-            routerRef.current.push(`/galeria?kraj=${encodeURIComponent(country)}`);
+        const bounds = new googleMaps.LatLngBounds();
+        let hasMarkers = false;
+
+        markers.forEach(({ country, count }) => {
+          const coordinates = getCountryCoordinates(country);
+          if (!coordinates) return;
+          hasMarkers = true;
+
+          const marker = new googleMaps.Marker({
+            position: coordinates,
+            map,
+            title: count > 0 ? `${country} · ${count} zdjęć` : country,
+            label: count > 1
+              ? { text: String(count), color: '#050505', fontSize: '10px', fontWeight: '700' }
+              : undefined,
+            icon: {
+              path: googleMaps.SymbolPath.CIRCLE,
+              scale: count > 1 ? 10 : 7,
+              fillColor: '#EAB308',
+              fillOpacity: 1,
+              strokeColor: '#050505',
+              strokeWeight: 2,
+            },
           });
+
+          if (navigateOnClick) {
+            marker.addListener('click', () => {
+              routerRef.current.push(`/galeria?kraj=${encodeURIComponent(country)}`);
+            });
+          }
+          bounds.extend(coordinates);
+        });
+
+        if (hasMarkers) {
+          map.fitBounds(bounds, 80);
+          googleMaps.event.addListenerOnce(map, 'idle', () => {
+            if (map.getZoom() > 6) map.setZoom(6);
+          });
+        } else {
+          map.setCenter({ lat: 20, lng: 0 });
+          map.setZoom(2);
         }
-        bounds.extend(coordinates);
+      })
+      .catch((error: Error) => {
+        if (!cancelled) setMapError(error.message);
       });
 
-      if (hasMarkers) {
-        map.fitBounds(bounds, 80);
-        const capZoom = googleMaps.event.addListenerOnce(map, 'idle', () => {
-          if (map.getZoom() > 6) map.setZoom(6);
-        });
-        void capZoom;
-      } else {
-        map.setCenter({ lat: 20, lng: 0 });
-        map.setZoom(2);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    if ((window as GoogleWindow).google?.maps) {
-      initializeMap();
-      return;
-    }
-
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      setMapError('Brak klucza Google Maps. Uzupełnij NEXT_PUBLIC_GOOGLE_MAPS_API_KEY, aby mapa działała.');
-      return;
-    }
-
-    const existingScript = document.getElementById('google-maps-script');
-    if (existingScript) {
-      const checkGoogleMaps = window.setInterval(() => {
-        if ((window as GoogleWindow).google?.maps) {
-          window.clearInterval(checkGoogleMaps);
-          initializeMap();
-        }
-      }, 200);
-      return () => window.clearInterval(checkGoogleMaps);
-    }
-
-    const script = document.createElement('script');
-    script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => initializeMap();
-    script.onerror = () => setMapError('Nie udało się załadować Google Maps.');
-    document.head.appendChild(script);
   }, [markers, navigateOnClick, showZoomControl]);
 
   return (
