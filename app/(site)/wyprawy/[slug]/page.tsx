@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { PortableText } from '@portabletext/react';
 import { ArrowLeft, Calendar, MapPin } from 'lucide-react';
 import PhotoGrid from '@/components/photo-grid';
-import TravelMap from '@/components/travel-map';
+import PhotoMap from '@/components/photo-map';
 import { fetchTripBySlug } from '@/lib/queries';
 import { formatTripDates, getImageUrl } from '@/lib/utils';
 
@@ -33,6 +33,7 @@ export default async function TripPage({ params }: TripPageProps) {
     : 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=2000&auto=format&fit=crop';
   const tripMarkers = (trip.countries ?? []).map((country) => ({ country, count: 0 }));
   const photos = trip.photos ?? [];
+  const pinnedPhotos = photos.filter((photo) => photo.coords);
 
   return (
     <main className="min-h-screen">
@@ -85,12 +86,13 @@ export default async function TripPage({ params }: TripPageProps) {
       </section>
 
       {/* Trasa */}
-      {tripMarkers.length > 0 ? (
+      {tripMarkers.length > 0 || pinnedPhotos.length > 0 ? (
         <section className="py-8 px-6">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-xl font-semibold text-white mb-6">Trasa wyprawy</h2>
-            <TravelMap
-              markers={tripMarkers}
+            <PhotoMap
+              photos={pinnedPhotos}
+              countryMarkers={tripMarkers}
               showZoomControl={false}
               className="h-64 md:h-80 rounded-2xl border border-zinc-800"
             />
