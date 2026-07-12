@@ -1,5 +1,5 @@
 export const PHOTO_CATEGORIES = [
-  { title: 'Wyprawy Moto', value: 'ADV' },
+  { title: 'Moto', value: 'ADV' },
   { title: 'Podróże', value: 'Travel' },
   { title: 'Natura', value: 'Nature' },
   { title: 'Street', value: 'Street' },

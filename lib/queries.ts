@@ -14,6 +14,12 @@ const PHOTO_FIELDS = `
   "coords": coalesce(coordinates, image.asset->metadata.location) { lat, lng }
 `;
 
+/**
+ * Zdjęcia podpięte do wyprawy (trip.photos) mają żyć wyłącznie w wątku tej wyprawy —
+ * wykluczamy je z głównej galerii, puli na stronie głównej, filtrów kategorii i mapy.
+ */
+const NOT_IN_TRIP_FILTER = `!(_id in *[_type == "trip"].photos[]._ref)`;
+
 const TRIP_LIST_FIELDS = `
   _id,
   title,
@@ -46,7 +52,9 @@ export const fetchSiteSettings = () =>
   }`);
 
 export const fetchAllPhotos = () =>
-  client.fetch<SanityPhoto[]>(`*[_type == "photo"] | order(_createdAt desc) { ${PHOTO_FIELDS} }`);
+  client.fetch<SanityPhoto[]>(
+    `*[_type == "photo" && ${NOT_IN_TRIP_FILTER}] | order(_createdAt desc) { ${PHOTO_FIELDS} }`,
+  );
 
 /**
  * Pula kadrów na stronę główną: wyróżnione (featured), a jeśli jest ich mniej niż 4 —
@@ -54,13 +62,13 @@ export const fetchAllPhotos = () =>
  */
 export const fetchFeaturedPool = async (poolSize = 12): Promise<SanityPhoto[]> => {
   const featured = await client.fetch<SanityPhoto[]>(
-    `*[_type == "photo" && featured == true] | order(_createdAt desc) [0...$poolSize] { ${PHOTO_FIELDS} }`,
+    `*[_type == "photo" && featured == true && ${NOT_IN_TRIP_FILTER}] | order(_createdAt desc) [0...$poolSize] { ${PHOTO_FIELDS} }`,
     { poolSize },
   );
   if (featured.length >= 4) return featured;
 
   const latest = await client.fetch<SanityPhoto[]>(
-    `*[_type == "photo"] | order(_createdAt desc) [0...$poolSize] { ${PHOTO_FIELDS} }`,
+    `*[_type == "photo" && ${NOT_IN_TRIP_FILTER}] | order(_createdAt desc) [0...$poolSize] { ${PHOTO_FIELDS} }`,
     { poolSize },
   );
   const seen = new Set(featured.map((photo) => photo._id));
@@ -70,8 +78,8 @@ export const fetchFeaturedPool = async (poolSize = 12): Promise<SanityPhoto[]> =
 export const fetchCategorySummaries = async (): Promise<CategorySummary[]> => {
   const projection = PHOTO_CATEGORIES.map(
     ({ value }) => `"${value}": {
-      "count": count(*[_type == "photo" && "${value}" in category]),
-      "cover": *[_type == "photo" && "${value}" in category] | order(_createdAt desc) [0].image
+      "count": count(*[_type == "photo" && "${value}" in category && ${NOT_IN_TRIP_FILTER}]),
+      "cover": *[_type == "photo" && "${value}" in category && ${NOT_IN_TRIP_FILTER}] | order(_createdAt desc) [0].image
     }`,
   ).join(',\n');
 
@@ -87,7 +95,7 @@ export const fetchCategorySummaries = async (): Promise<CategorySummary[]> => {
 
 export const fetchCountryMarkers = async (): Promise<CountryMarker[]> => {
   const rows = await client.fetch<Array<{ country?: string }>>(
-    `*[_type == "photo" && defined(country)] { country }`,
+    `*[_type == "photo" && defined(country) && ${NOT_IN_TRIP_FILTER}] { country }`,
   );
   const counts = new Map<string, number>();
   rows.forEach(({ country }) => {
