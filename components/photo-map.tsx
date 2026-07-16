@@ -60,7 +60,8 @@ export default function PhotoMap({
 }: PhotoMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [lightboxPhoto, setLightboxPhoto] = useState<SanityPhoto | null>(null);
+  const [lightboxPhotos, setLightboxPhotos] = useState<SanityPhoto[] | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [clusterPhotos, setClusterPhotos] = useState<SanityPhoto[] | null>(null);
   const router = useRouter();
   const routerRef = useRef(router);
@@ -120,7 +121,8 @@ export default function PhotoMap({
             if (isMulti) {
               setClusterPhotos(spot.photos);
             } else {
-              setLightboxPhoto(spot.photos[0]);
+              setLightboxPhotos(spot.photos);
+              setLightboxIndex(0);
             }
           });
 
@@ -241,14 +243,22 @@ export default function PhotoMap({
         <PhotoClusterPanel
           photos={clusterPhotos}
           onSelect={(photo) => {
+            setLightboxPhotos(clusterPhotos);
+            setLightboxIndex(clusterPhotos.indexOf(photo));
             setClusterPhotos(null);
-            setLightboxPhoto(photo);
           }}
           onClose={() => setClusterPhotos(null)}
         />
       )}
 
-      {lightboxPhoto && <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />}
+      {lightboxPhotos && (
+        <PhotoLightbox
+          photos={lightboxPhotos}
+          index={lightboxIndex}
+          onClose={() => setLightboxPhotos(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </>
   );
 }

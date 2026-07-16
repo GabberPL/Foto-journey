@@ -1,18 +1,54 @@
 "use client";
 
-import { useEffect } from 'react';
-import { Aperture, Camera, Clock, Gauge, Map as MapIcon, X, Zap } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Aperture, Camera, ChevronLeft, ChevronRight, Clock, Gauge, Map as MapIcon, X, Zap } from 'lucide-react';
 import { getCategoryTitle, getImageUrl, getPhotoCategories } from '@/lib/utils';
 import type { SanityPhoto } from '@/lib/types';
 
-export default function PhotoLightbox({ photo, onClose }: { photo: SanityPhoto; onClose: () => void }) {
+const SWIPE_THRESHOLD = 50;
+
+type PhotoLightboxProps = {
+  photos: SanityPhoto[];
+  index: number;
+  onClose: () => void;
+  onNavigate: (index: number) => void;
+};
+
+export default function PhotoLightbox({ photos, index, onClose, onNavigate }: PhotoLightboxProps) {
+  const photo = photos[index];
+  const hasMultiple = photos.length > 1;
+  const touchStartX = useRef<number | null>(null);
+
+  const goToPrev = () => onNavigate((index - 1 + photos.length) % photos.length);
+  const goToNext = () => onNavigate((index + 1) % photos.length);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (!hasMultiple) return;
+      if (e.key === 'ArrowLeft') goToPrev();
+      if (e.key === 'ArrowRight') goToNext();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, index, hasMultiple]);
+
+  if (!photo) return null;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartX.current;
+    touchStartX.current = null;
+    if (startX === null || !hasMultiple) return;
+    const deltaX = e.changedTouches[0].clientX - startX;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
+    if (deltaX < 0) goToNext();
+    else goToPrev();
+  };
 
   return (
     <div
@@ -27,9 +63,36 @@ export default function PhotoLightbox({ photo, onClose }: { photo: SanityPhoto; 
         <X size={24} />
       </button>
 
+      {hasMultiple && (
+        <>
+          <button
+            className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white z-50 p-2 bg-zinc-900/50 rounded-full transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              goToPrev();
+            }}
+            aria-label="Poprzednie zdjęcie"
+          >
+            <ChevronLeft size={28} />
+          </button>
+          <button
+            className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white z-50 p-2 bg-zinc-900/50 rounded-full transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              goToNext();
+            }}
+            aria-label="Następne zdjęcie"
+          >
+            <ChevronRight size={28} />
+          </button>
+        </>
+      )}
+
       <div
         className="flex flex-col md:flex-row max-w-7xl w-full h-full max-h-[90vh] bg-zinc-950 rounded-2xl overflow-hidden shadow-2xl border border-zinc-800"
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <div className="flex-1 bg-[#050505] flex items-center justify-center p-4 relative">
           <img
@@ -37,6 +100,11 @@ export default function PhotoLightbox({ photo, onClose }: { photo: SanityPhoto; 
             alt={photo.title}
             className="max-w-full max-h-full object-contain"
           />
+          {hasMultiple && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-zinc-400 bg-zinc-900/70 px-3 py-1 rounded-full font-mono">
+              {index + 1} / {photos.length}
+            </div>
+          )}
         </div>
 
         <div className="w-full md:w-80 lg:w-96 bg-zinc-950 p-6 md:p-8 border-l border-zinc-900 flex flex-col overflow-y-auto">

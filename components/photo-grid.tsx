@@ -16,7 +16,7 @@ type PhotoGridProps = {
 };
 
 export default function PhotoGrid({ photos, initialCount = 0, emptyMessage = 'Brak zdjęć.' }: PhotoGridProps) {
-  const [lightboxPhoto, setLightboxPhoto] = useState<SanityPhoto | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(initialCount > 0 ? initialCount : Infinity);
 
   if (photos.length === 0) {
@@ -29,11 +29,11 @@ export default function PhotoGrid({ photos, initialCount = 0, emptyMessage = 'Br
   return (
     <>
       <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-        {visiblePhotos.map((photo) => (
+        {visiblePhotos.map((photo, index) => (
           <div
             key={photo._id}
             className="scroll-reveal relative group break-inside-avoid rounded-xl overflow-hidden cursor-pointer bg-zinc-900 border border-zinc-800"
-            onClick={() => setLightboxPhoto(photo)}
+            onClick={() => setLightboxIndex(index)}
           >
             <img
               src={getImageUrl(photo.image, 1200)}
@@ -65,7 +65,14 @@ export default function PhotoGrid({ photos, initialCount = 0, emptyMessage = 'Br
         </div>
       )}
 
-      {lightboxPhoto && <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />}
+      {lightboxIndex !== null && (
+        <PhotoLightbox
+          photos={photos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </>
   );
 }

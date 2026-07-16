@@ -14,7 +14,7 @@ const PICK_COUNT = 4;
  */
 export default function FeaturedPhotos({ pool }: { pool: SanityPhoto[] }) {
   const [picked, setPicked] = useState<SanityPhoto[] | null>(null);
-  const [lightboxPhoto, setLightboxPhoto] = useState<SanityPhoto | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const shuffled = [...pool];
@@ -36,11 +36,11 @@ export default function FeaturedPhotos({ pool }: { pool: SanityPhoto[] }) {
           ? Array.from({ length: Math.min(PICK_COUNT, pool.length) }).map((_, index) => (
               <div key={index} className="aspect-[3/4] rounded-xl bg-zinc-900/70 border border-zinc-800 animate-pulse" />
             ))
-          : picked.map((photo) => (
+          : picked.map((photo, index) => (
               <div
                 key={photo._id}
                 className="fade-in-soft relative group aspect-[3/4] rounded-xl overflow-hidden cursor-pointer bg-zinc-900 border border-zinc-800"
-                onClick={() => setLightboxPhoto(photo)}
+                onClick={() => setLightboxIndex(index)}
               >
                 <img
                   src={getImageUrl(photo.image, 900)}
@@ -60,7 +60,14 @@ export default function FeaturedPhotos({ pool }: { pool: SanityPhoto[] }) {
             ))}
       </div>
 
-      {lightboxPhoto && <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />}
+      {lightboxIndex !== null && picked && (
+        <PhotoLightbox
+          photos={picked}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </>
   );
 }
